@@ -28,7 +28,7 @@ func main() {
 	fmt.Println("tunnel-http-socks")
 	fmt.Println()
 
-	s := parapet.New()
+	s := parapet.Server{}
 	s.Use(logger.Stdout())
 
 	var targets []*upstream.Target
