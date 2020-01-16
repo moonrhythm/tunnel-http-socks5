@@ -1,5 +1,7 @@
 FROM gcr.io/moonrhythm-containers/alpine
 
+RUN apk add --no-cache openssh
+
 RUN mkdir -p /app
 WORKDIR /app
 
