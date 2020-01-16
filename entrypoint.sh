@@ -1,4 +1,4 @@
-echo "${TUNNEL_SSH_KEY}" > ./ssh_key
+echo "${TUNNEL_SSH_KEY}" | base64 -D > ./ssh_key
 chmod 400 ./ssh_key
 
 ssh -i ./ssh_key "${TUNNEL_USER}@${TUNNEL_IP}" \
