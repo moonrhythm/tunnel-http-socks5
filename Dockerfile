@@ -5,5 +5,6 @@ WORKDIR /app
 
 COPY tunnel-http-socks5 ./
 COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]
