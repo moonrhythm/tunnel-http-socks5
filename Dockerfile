@@ -7,4 +7,4 @@ COPY tunnel-http-socks5 ./
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-CMD ["/app/entrypoint.sh"]
+CMD ["sh", "/app/entrypoint.sh"]
