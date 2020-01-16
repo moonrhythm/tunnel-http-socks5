@@ -1,0 +1,13 @@
+steps:
+- name: gcr.io/moonrhythm-containers/golang:1.13.6-alpine
+  args: [go, build, -o, tunnel-http-socks5, -ldflags, -w -s, main.go]
+  env:
+  - CGO_ENABLED=0
+- name: gcr.io/cloud-builders/docker
+  args: [build, -t, gcr.io/$PROJECT_ID/tunnel-http-socks5:master, '.']
+- name: gcr.io/cloud-builders/docker
+  args: [tag, gcr.io/$PROJECT_ID/tunnel-http-socks5:master, gcr.io/$PROJECT_ID/tunnel-http-socks5:$COMMIT_SHA]
+
+images:
+- gcr.io/$PROJECT_ID/tunnel-http-socks5:master
+- gcr.io/$PROJECT_ID/tunnel-http-socks5:$COMMIT_SHA
