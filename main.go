@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"strings"
+	"net/http"
+	"net/url"
 
 	"github.com/acoshift/configfile"
 	"github.com/moonrhythm/parapet"
@@ -15,31 +16,23 @@ var config = configfile.NewEnvReader()
 
 var (
 	port                 = config.IntDefault("port", 8080)
-	upstreamAddr         = config.String("upstream_addr")  // comma split addr
-	upstreamProto        = config.String("upstream_proto") // http, h2c, https, unix
-	upstreamHeaderSet    = parseHeaders(config.String("upstream_header_set"))
-	upstreamHeaderAdd    = parseHeaders(config.String("upstream_header_add"))
-	upstreamHeaderDel    = parseHeaders(config.String("upstream_header_del"))
+	upstreamAddr         = config.String("upstream_addr")
 	upstreamOverrideHost = config.String("upstream_override_host")
 	upstreamPath         = config.String("upstream_path") // prefix path
 )
 
 func main() {
-	fmt.Println("tunnel-http-socks")
+	fmt.Println("tunnel-http-socks5")
 	fmt.Println()
 
 	s := parapet.Server{}
 	s.Use(logger.Stdout())
 
-	var targets []*upstream.Target
-	for _, addr := range strings.Split(upstreamAddr, ",") {
-		targets = append(targets, &upstream.Target{
-			Host:      addr,
-			Transport: &upstream.HTTPTransport{},
-		})
-	}
+	socks5URL, _ := url.Parse("socks5://127.0.0.1:5000")
 
-	us := upstream.New(upstream.NewRoundRobinLoadBalancer(targets))
+	us := upstream.New(upstream.SingleHost(upstreamAddr, &transport{&http.Transport{
+		Proxy: http.ProxyURL(socks5URL),
+	}}))
 	us.Host = upstreamOverrideHost
 	us.Path = upstreamPath
 	s.Use(us)
@@ -56,22 +49,11 @@ func main() {
 	}
 }
 
-func parseHeaders(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
+type transport struct {
+	h *http.Transport
+}
 
-	ss := strings.Split(s, ",")
-
-	var rs []string
-	for _, x := range ss {
-		ps := strings.Split(x, ":")
-		if len(ps) != 2 {
-			continue
-		}
-		rs = append(rs, strings.TrimSpace(ps[0]), strings.TrimSpace(ps[1]))
-	}
-
-	return rs
+func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.URL.Scheme = "http"
+	return t.h.RoundTrip(r)
 }
