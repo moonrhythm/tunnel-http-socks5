@@ -21,7 +21,7 @@ var (
 	upstreamAddr         = config.String("upstream_addr")
 	upstreamOverrideHost = config.String("upstream_override_host")
 	upstreamPath         = config.String("upstream_path") // prefix path
-	tunnelIP             = config.String("tunnel_ip")
+	tunnelAddr           = config.String("tunnel_addr")
 	tunnelUser           = config.String("tunnel_user")
 	tunnelSSHKEY         = config.Base64("tunnel_ssh_key")
 )
@@ -39,10 +39,10 @@ func main() {
 		return
 	}
 
-	sshClient, err := ssh.Dial("tcp", tunnelIP, &ssh.ClientConfig{
-		Config: ssh.Config{},
-		User:   tunnelUser,
-		Auth:   []ssh.AuthMethod{ssh.PublicKeys(priKey)},
+	sshClient, err := ssh.Dial("tcp", tunnelAddr, &ssh.ClientConfig{
+		User:            tunnelUser,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(priKey)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})
 	if err != nil {
 		log.Printf("ssh: dial error; %v", err)
