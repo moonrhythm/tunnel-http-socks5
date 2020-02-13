@@ -1,15 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
-	"net/url"
 
 	"github.com/acoshift/configfile"
 	"github.com/moonrhythm/parapet"
 	"github.com/moonrhythm/parapet/pkg/logger"
 	"github.com/moonrhythm/parapet/pkg/upstream"
+	"golang.org/x/crypto/ssh"
 )
 
 var config = configfile.NewEnvReader()
@@ -19,6 +21,9 @@ var (
 	upstreamAddr         = config.String("upstream_addr")
 	upstreamOverrideHost = config.String("upstream_override_host")
 	upstreamPath         = config.String("upstream_path") // prefix path
+	tunnelIP             = config.String("tunnel_ip")
+	tunnelUser           = config.String("tunnel_user")
+	tunnelSSHKEY         = config.Base64("tunnel_ssh_key")
 )
 
 func main() {
@@ -28,10 +33,27 @@ func main() {
 	s := parapet.Server{}
 	s.Use(logger.Stdout())
 
-	socks5URL, _ := url.Parse("socks5://127.0.0.1:5000")
+	priKey, err := ssh.ParsePrivateKey(tunnelSSHKEY)
+	if err != nil {
+		log.Fatalf("can not parse private key; %v", err)
+		return
+	}
+
+	sshClient, err := ssh.Dial("tcp", tunnelIP, &ssh.ClientConfig{
+		Config: ssh.Config{},
+		User:   tunnelUser,
+		Auth:   []ssh.AuthMethod{ssh.PublicKeys(priKey)},
+	})
+	if err != nil {
+		log.Printf("ssh: dial error; %v", err)
+		return
+	}
+	defer sshClient.Close()
 
 	us := upstream.New(upstream.SingleHost(upstreamAddr, &transport{&http.Transport{
-		Proxy: http.ProxyURL(socks5URL),
+		DialContext: func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+			return sshClient.Dial(network, addr)
+		},
 	}}))
 	us.Host = upstreamOverrideHost
 	us.Path = upstreamPath
@@ -43,7 +65,7 @@ func main() {
 	fmt.Println("Starting parapet on port", port)
 	fmt.Println()
 
-	err := s.ListenAndServe()
+	err = s.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
