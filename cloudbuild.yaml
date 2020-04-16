@@ -1,5 +1,5 @@
 steps:
-- name: gcr.io/moonrhythm-containers/golang:1.13.6-alpine
+- name: gcr.io/moonrhythm-containers/golang:1.14.2-alpine
   args: [go, build, -o, tunnel-http-socks5, -ldflags, -w -s, main.go]
   env:
   - CGO_ENABLED=0

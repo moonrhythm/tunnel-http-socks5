@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/acoshift/configfile"
 	"github.com/moonrhythm/parapet"
@@ -39,11 +40,23 @@ func main() {
 		return
 	}
 
-	sshClient, err := ssh.Dial("tcp", tunnelAddr, &ssh.ClientConfig{
-		User:            tunnelUser,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(priKey)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	})
+	var (
+		muClient  sync.RWMutex
+		sshClient *ssh.Client
+	)
+	connectSSH := func() error {
+		muClient.Lock()
+		defer muClient.Unlock()
+
+		var err error
+		sshClient, err = ssh.Dial("tcp", tunnelAddr, &ssh.ClientConfig{
+			User:            tunnelUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(priKey)},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		return err
+	}
+	err = connectSSH()
 	if err != nil {
 		log.Printf("ssh: dial error; %v", err)
 		return
@@ -52,7 +65,19 @@ func main() {
 
 	us := upstream.New(upstream.SingleHost(upstreamAddr, &transport{&http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-			return sshClient.Dial(network, addr)
+			muClient.RLock()
+			defer muClient.RUnlock()
+
+			conn, err = sshClient.Dial(network, addr)
+			if err != nil {
+				// re-connect
+				muClient.RUnlock()
+				connectSSH()
+				muClient.RLock()
+
+				conn, err = sshClient.Dial(network, addr)
+			}
+			return
 		},
 	}}))
 	us.Host = upstreamOverrideHost
